@@ -1,0 +1,732 @@
+/* ==========================================================================
+   relume-anim.css — motion layer for the Publish site (/publish-dev/*)
+   Motion only: nothing here changes colour, spacing, type or layout at rest.
+   Every selector keys off a data-anim hook stamped by relume-anim.js, so no
+   Webflow auto-generated class name is ever depended on.
+
+   REUSE: the JS binds to the design system's own classes, so a section built
+   from existing components inherits its motion with no markup. For anything
+   new, set data-relume-fx in the Designer's custom-attributes panel — no code
+   change needed. Space separated, so "trail dither" applies both.
+
+     data-relume-fx="trail"        border trail around this container
+     data-relume-fx="dither"       dither shader over the images inside
+     data-relume-fx="text-effect"  per-character reveal of this text
+     data-relume-fx="blur-fade"    blur + fade this container's children in
+     data-relume-fx="grow"         hover grow / press shrink
+     data-relume-fx="hovercard"    profile card on this avatar
+     data-relume-fx="dot-link"     dotted underline that travels on hover
+     data-relume-fx="none"         opt this element and its subtree OUT
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Theme toggle — View Transitions
+   Per Animate UI theme-toggler: the default cross-fade is disabled so the
+   clip-path wipe driven from JS is the only thing that animates.
+   -------------------------------------------------------------------------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* The outgoing snapshot must sit under the incoming one for a wipe to read as
+   a wipe rather than a cross-dissolve. */
+::view-transition-old(root) { z-index: 0; }
+::view-transition-new(root) { z-index: 1; }
+
+/* --------------------------------------------------------------------------
+   2. Composer watermark
+   True overlay: the textarea value is never touched. The host form is only
+   given `position:relative` — no offsets, so nothing reflows.
+   -------------------------------------------------------------------------- */
+[data-anim="composer-form"] { position: relative; }
+
+[data-anim="watermark"] {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+  /* Geometry is written by JS from the textarea's own box so the string sits
+     exactly where the native placeholder used to. */
+}
+
+[data-anim="watermark-line"] {
+  position: absolute;
+  inset: 0;
+  /* A shade lighter than the tertiary text token so the watermark reads as a
+     prompt rather than as content. Mixed toward transparent rather than picking
+     the next token down (--foreground--disabled is far too pale), and it stays
+     correct in both themes. */
+  color: var(--_publish-colors---foreground--tertiary);
+  color: color-mix(in srgb, var(--_publish-colors---foreground--tertiary) 72%, transparent);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  opacity: 0;
+  /* Aceternity: 0.3s linear, enter from y:5, exit to y:-15. */
+  transition: opacity 300ms linear, transform 300ms linear;
+  will-change: opacity, transform;
+}
+[data-anim="watermark-line"][data-state="enter"] { opacity: 1; transform: translateY(0); }
+[data-anim="watermark-line"][data-state="below"] { opacity: 0; transform: translateY(5px); }
+[data-anim="watermark-line"][data-state="above"] { opacity: 0; transform: translateY(-15px); }
+
+/* The instant the field has content the watermark is gone — no fade, so it can
+   never be mistaken for real text. */
+[data-anim="watermark"][data-hidden="true"] { display: none; }
+
+/* Caret. Brand pink is set on the field itself so it stays pink for the whole
+   session, including while typing. CSS has no caret-width, so the thicker
+   "ready to type" caret is drawn: while the field is focused and empty the
+   native caret is hidden and this one stands in at 1.5px. As soon as there is
+   text the watermark (and this caret with it) is gone and the native pink
+   caret takes over. */
+/* .w-input is qualified deliberately: the page already ships
+   `.w-input, .w-select, a { caret-color:#6248FF }` in an inline <style>, which
+   matches at the same specificity but later in the document. Naming the class
+   here outranks it without resorting to !important. */
+.w-input[data-anim="composer-input"] { caret-color: var(--_publish-colors---foreground--ai); }
+.w-input[data-anim="composer-input"][data-caret="custom"] { caret-color: transparent; }
+
+[data-anim="caret"] {
+  position: absolute;
+  left: 0;
+  /* Centred on the line box, not hung from its top: the box is the full
+     line-height (24px) while the glyphs sit optically centred inside it, so a
+     top-anchored bar rides about 5px high above the text. */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.5px;
+  height: 1.15em;
+  background-color: var(--_publish-colors---foreground--ai);
+  border-radius: 1px;
+  display: none;
+  animation: ra-caret-blink 1.06s steps(1, end) infinite;
+}
+[data-anim="watermark"][data-focused="true"] [data-anim="caret"] { display: block; }
+
+@keyframes ra-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+   3. Buttons — primary / secondary / icon only
+   Animate UI button primitive: whileHover scale 1.05, whileTap scale 0.95.
+   The four transitions already on .p-button are restated so adding transform
+   does not drop the existing colour/opacity fades.
+   -------------------------------------------------------------------------- */
+[data-anim^="btn-"] {
+  transition:
+    opacity .2s,
+    color .2s,
+    border-color .2s,
+    background-color .2s,
+    transform 200ms ease-out;
+}
+
+@media (hover: hover) {
+  [data-anim^="btn-"]:hover { transform: scale(1.03); }
+}
+
+[data-anim^="btn-"]:active {
+  transform: scale(0.97);
+  transition-duration: .2s, .2s, .2s, .2s, 120ms;
+}
+
+/* Icon buttons are square and often sit inside a clipping parent, so they get a
+   gentler scale — enough to feel the press, not enough to crop a glyph. */
+@media (hover: hover) {
+  [data-anim="btn-icon"]:hover { transform: scale(1.05); }
+}
+[data-anim="btn-icon"]:active { transform: scale(0.96); }
+
+/* --------------------------------------------------------------------------
+   3b. The same press/grow on other clickable things — nav links, dropdown
+   toggles, dropdown items, the showcase heart. A separate attribute so it can
+   sit alongside data-anim (a dropdown item is already a stagger target).
+   -------------------------------------------------------------------------- */
+[data-anim-grow] {
+  transition: transform 200ms ease-out;
+  transform-origin: center;
+}
+
+@media (hover: hover) {
+  [data-anim-grow]:hover { transform: scale(1.03); }
+}
+[data-anim-grow]:active { transform: scale(0.97); transition-duration: 120ms; }
+[data-anim-grow]:focus-visible { transform: scale(1.03); }
+
+/* Dropdown items are also stagger targets: while the menu is opening their
+   transform belongs to the entrance, so the grow only applies once open. */
+[data-anim="dropdown-list"] [data-anim-grow] { transform-origin: left center; }
+
+/* Nothing animates on a disabled control. */
+[data-anim^="btn-"]:disabled,
+[data-anim^="btn-"][aria-disabled="true"],
+[data-anim^="btn-"].is-disabled,
+[data-anim^="btn-"][data-anim-disabled="true"] {
+  transform: none !important;
+  transition-property: opacity, color, border-color, background-color;
+}
+
+/* Keyboard users get the same affordance as pointer users. */
+[data-anim^="btn-"]:focus-visible { transform: scale(1.05); }
+[data-anim="btn-icon"]:focus-visible { transform: scale(1.08); }
+
+/* --------------------------------------------------------------------------
+   4. Navbar dropdowns — animated purely off Webflow's own w--open
+   Webflow writes no inline styles here, so display can be transitioned with
+   allow-discrete and the exit actually plays instead of snapping.
+   Desktop only: below 992px the list becomes part of the in-flow mobile menu,
+   and animating display there risks fighting the nav's own open/close.
+   -------------------------------------------------------------------------- */
+@media (min-width: 992px) {
+  [data-anim="dropdown-list"] {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transform-origin: top center;
+    /* exit ~140ms ease-in */
+    transition:
+      opacity 140ms ease-in,
+      transform 140ms ease-in,
+      display 140ms ease-in allow-discrete;
+  }
+
+  [data-anim="dropdown-list"].w--open {
+    opacity: 1;
+    transform: none;
+    /* enter ~180ms ease-out */
+    transition:
+      opacity 180ms ease-out,
+      transform 180ms ease-out,
+      display 180ms ease-out allow-discrete;
+  }
+
+  /* Without this the element would already be at its open values on the frame
+     it gains display:block, and the enter would be skipped. */
+  @starting-style {
+    [data-anim="dropdown-list"].w--open {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+  }
+
+  /* Optional stagger — CSS delay on children only, no JS. */
+  [data-anim="dropdown-list"] [data-anim="dropdown-item"] {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 140ms ease-in, transform 140ms ease-in;
+  }
+  [data-anim="dropdown-list"].w--open [data-anim="dropdown-item"] {
+    opacity: 1;
+    transform: none;
+    transition: opacity 180ms ease-out, transform 180ms ease-out;
+  }
+  [data-anim="dropdown-list"].w--open [data-anim="dropdown-item"]:nth-child(1) { transition-delay: 30ms; }
+  [data-anim="dropdown-list"].w--open [data-anim="dropdown-item"]:nth-child(2) { transition-delay: 60ms; }
+  [data-anim="dropdown-list"].w--open [data-anim="dropdown-item"]:nth-child(3) { transition-delay: 90ms; }
+  [data-anim="dropdown-list"].w--open [data-anim="dropdown-item"]:nth-child(4) { transition-delay: 120ms; }
+  [data-anim="dropdown-list"].w--open [data-anim="dropdown-item"]:nth-child(n+5) { transition-delay: 150ms; }
+}
+
+/* --------------------------------------------------------------------------
+   5. Avatar hover cards
+   Layout and content structure mirror the Animate UI / Radix hover-card demo;
+   every colour, radius and font comes from the existing publish variables.
+   -------------------------------------------------------------------------- */
+/* NOVA "Profile Preview" (10441:265705). Every value below is the design's,
+   expressed through the site's own tokens — background/secondary-(blur),
+   border/subtle and the lg/md/sm radii all exist here with identical values. */
+[data-anim="hovercard"] {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;                                    /* --md */
+  width: 378px;
+  max-width: calc(100vw - 2rem);
+  padding: 20px;                                /* --lg */
+  border: 1px solid var(--_publish-colors---borders--subtle-light);
+  border-radius: var(--_publish-radii---lg, 12px);
+  background-color: var(--_publish-colors---background--secondary-blur);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 20px -6px rgba(0, 0, 0, .1);
+  overflow: clip;
+  color: var(--_publish-colors---foreground--primary);
+  /* Spring(stiffness 300, damping 25, mass 1) settles in ~370ms with ~4%
+     overshoot; this bezier is the closest single-curve equivalent. */
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 370ms cubic-bezier(.34, 1.35, .64, 1),
+              transform 370ms cubic-bezier(.34, 1.35, .64, 1);
+  will-change: opacity, transform;
+}
+
+[data-anim="hovercard"][data-state="open"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+[data-anim="hovercard"][hidden] { display: none; }
+
+/* Avatars are interactive but read as flat images, so nothing says "hover me"
+   until the card has already opened. The grow gives that feedback immediately,
+   well before the 700ms open delay elapses.
+   It is applied to the avatar's CONTAINER, not the <img>: the container carries
+   the ring/border and any badge, so scaling the image alone would slide the
+   photo out from under its own frame. */
+[data-anim="hovercard-trigger"] { cursor: pointer; }
+
+/* The designer's name is a text link, not a face — growing text looks broken,
+   so it only gets the pointer and its existing underline. */
+a[data-anim="hovercard-trigger"] { transform: none !important; }
+
+/* The card is 378px wide by design; below that it tracks the viewport. */
+@media (max-width: 420px) {
+  [data-anim="hovercard"] { width: calc(100vw - 2rem); }
+}
+
+.ra-hc__head { display: flex; gap: 10px; align-items: flex-start; width: 100%; }
+
+.ra-hc__person {
+  display: flex;
+  flex: 1 0 0;
+  gap: 11px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 48px square with the md radius — not a circle. The wrapper stays unclipped
+   so the team badge can hang past its corner. */
+.ra-hc__avatar { position: relative; flex: 0 0 auto; width: 48px; height: 48px; }
+
+/* No background fill here. The Figma frame showed #98eafd behind one specific
+   photo; lifting that into a global rule painted a blue square behind every
+   transparent avatar — logos and cut-out portraits alike. The card surface
+   shows through instead. */
+.ra-hc__avatar-img {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--_publish-radii---md, 8px);
+  object-fit: cover;
+  display: block;
+}
+
+.ra-hc__avatar-badge {
+  position: absolute;
+  left: 35px;
+  top: 35px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--_publish-radii---lg, 12px);
+  overflow: clip;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ra-hc__avatar-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+
+/* Relume staff have no company avatar, so the badge carries the brand glyph on
+   the inverse surface instead of a photo. */
+.ra-hc__avatar-badge[data-glyph="true"] {
+  background-color: var(--_publish-colors---background--inverse);
+  color: var(--_publish-colors---foreground--inverse);
+  border: 1.5px solid var(--_publish-colors---background--secondary-blur);
+}
+
+/* Same 30x30 .p-icon box as the link chip, and here it overflows a 20px badge
+   that clips — so the glyph has to be sized down to its own em box too. */
+.ra-hc__avatar-badge .p-icon {
+  font-size: 11px;
+  line-height: 11px;
+  width: 11px;
+  height: 11px;
+  display: block;
+}
+
+.ra-hc__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;                 /* --xs3 */
+  justify-content: center;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Footer row (10443:265865): the joined date sits opposite the Pro badge. */
+.ra-hc__meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.ra-hc__name {
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 20px;
+  letter-spacing: -0.34px;
+  text-transform: uppercase;
+  color: var(--_publish-colors---foreground--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ra-hc__pro {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background-color: var(--_publish-colors---background--inverse);
+  color: var(--_publish-colors---foreground--inverse);
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 18px;
+  letter-spacing: -0.22px;
+  text-transform: uppercase;
+}
+
+/* Masked rather than <img src> so the glyph inherits the badge's text colour
+   and stays legible when background/inverse flips in dark mode. */
+.ra-hc__pro-icon {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  background-color: currentColor;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.ra-hc__role {
+  font-family: "Geist Variable", Arial, sans-serif;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--_publish-colors---foreground--tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ra-hc__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--_publish-colors---borders--subtle-light);
+  border-radius: var(--_publish-radii---sm, 6px);
+  color: var(--_publish-colors---foreground--primary);
+  text-decoration: none;
+  transition: transform 200ms ease-out, background-color 200ms ease-out;
+}
+
+.ra-hc__link:hover {
+  transform: scale(1.05);
+  background-color: var(--_publish-colors---states--hover, rgba(0, 0, 0, .04));
+}
+
+/* The global .p-icon is a 30x30 block, so shrinking only the font left the
+   16px glyph in the top-left corner of that box — 7px up and left of the
+   chip's centre. The box has to shrink to the glyph for the flex centring
+   above to mean anything. */
+.ra-hc__link .p-icon {
+  font-size: 16px;
+  line-height: 16px;
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.ra-hc__bio,
+.ra-hc__joined {
+  margin: 0;
+  width: 100%;
+  font-family: "Geist Variable", Arial, sans-serif;
+  font-weight: 400;
+  font-size: 14px;          /* body/m/regular */
+  line-height: 20px;
+}
+
+.ra-hc__bio { color: var(--_publish-colors---foreground--primary); }
+
+/* Deliberate deviation: the design has this at body/m (14px/20px). Dropped to
+   body/s — the same step the role line uses — so the tenure sits back from the
+   bio instead of competing with it. */
+.ra-hc__joined {
+  color: var(--_publish-colors---foreground--tertiary);
+  width: auto;              /* it shares the footer row with the badge */
+  white-space: nowrap;
+  font-size: 12px;          /* body/s/regular */
+  line-height: 18px;
+}
+
+/* --------------------------------------------------------------------------
+   5b. Dotted-underline links — text to primary, dots march
+   The native `text-decoration: dotted` cannot animate its dots, so on hover the
+   real underline is faded to transparent and an identical row of dots drawn as
+   a repeating radial-gradient takes over and scrolls. Both sides cross-fade, so
+   a sub-pixel difference in where the two sit never reads as a jump.
+   -------------------------------------------------------------------------- */
+a[data-anim-dotlink] {
+  position: relative;
+  transition: color 200ms ease-out, text-decoration-color 200ms ease-out;
+}
+
+/* Footer links are display:block, so without this the dots would run the full
+   width of the column instead of stopping at the end of the word. */
+a[data-anim-dotlink][data-dotlink-block] { width: -moz-fit-content; width: fit-content; }
+
+a[data-anim-dotlink]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Measured per link from the text baseline (see placeDots) so the dots land
+     exactly on the native underline — no vertical shift on hover — and sit the
+     same distance from the text on inline and block links alike. The em value
+     is only the pre-measurement fallback. */
+  bottom: var(--ra-dot-bottom, -0.16em);
+  height: 2px;
+  /* dot ≈ the native 1.68px decoration thickness, gap ≈ the same again */
+  background-image: radial-gradient(circle at 50% 50%,
+    var(--_publish-colors---foreground--ai) 0.84px, transparent 0.9px);
+  background-size: 3.4px 2px;
+  background-repeat: repeat-x;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  a[data-anim-dotlink]:hover {
+    color: var(--_publish-colors---foreground--primary);
+    text-decoration-color: transparent;
+  }
+  a[data-anim-dotlink]:hover::after {
+    opacity: 1;
+    animation: ra-dotlink-march 700ms linear infinite;
+  }
+}
+
+/* Keyboard users get the same treatment. */
+a[data-anim-dotlink]:focus-visible { color: var(--_publish-colors---foreground--primary); }
+a[data-anim-dotlink]:focus-visible::after {
+  opacity: 1;
+  animation: ra-dotlink-march 700ms linear infinite;
+}
+
+@keyframes ra-dotlink-march {
+  from { background-position-x: 0; }
+  to   { background-position-x: 3.4px; }
+}
+
+/* --------------------------------------------------------------------------
+   6. Motion-Primitives TextEffect — per-character reveal on taglines
+   Their spec: 0.03s stagger per char, 0.3s per segment. Words stay whole so
+   the line still wraps on word boundaries; only the characters inside animate.
+   -------------------------------------------------------------------------- */
+[data-anim="text-effect"] .ra-word {
+  display: inline-block;
+  white-space: nowrap;   /* keeps a word from breaking between its characters */
+}
+
+[data-anim="text-effect"] .ra-char {
+  display: inline-block;
+  white-space: pre;
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+  will-change: opacity;
+}
+
+[data-anim="text-effect"][data-state="visible"] .ra-char { opacity: 1; }
+
+/* --------------------------------------------------------------------------
+   7. Blur fade — whole elements, using the TextEffect "blur" preset values
+   (opacity 0 -> 1, filter blur(12px) -> blur(0)) at the same 0.3s / 0.05s
+   stagger, applied per element instead of per segment.
+   -------------------------------------------------------------------------- */
+[data-anim="blur-fade"] {
+  opacity: 0;
+  filter: blur(12px);
+  transition: opacity 300ms ease-out, filter 300ms ease-out;
+  will-change: opacity, filter;
+}
+
+[data-anim="blur-fade"][data-state="visible"] {
+  opacity: 1;
+  filter: blur(0px);
+}
+
+/* filter leaves behind a stacking context and a containing block for fixed
+   descendants, so it is dropped entirely once the reveal has finished. */
+[data-anim="blur-fade"][data-done="true"] {
+  filter: none;
+  will-change: auto;
+}
+
+/* --------------------------------------------------------------------------
+   10. Border trail (motion-primitives BorderTrail)
+       The mask pair is what confines the trail to the border ring: one layer
+       clipped to the padding box, one to the border box, intersected.
+   -------------------------------------------------------------------------- */
+/* The trail is absolutely positioned inside its host, so the host has to be a
+   containing block. The composer already is; anything opted in from the
+   Designer with data-relume-fx="trail" may not be, so the hook the JS stamps
+   guarantees it. */
+[data-anim-trail="on"] { position: relative; }
+
+[data-anim="trail-mask"] {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid transparent;
+  pointer-events: none;
+  z-index: 2;
+  -webkit-mask-clip: padding-box, border-box;
+  mask-clip: padding-box, border-box;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-image: linear-gradient(transparent, transparent), linear-gradient(#000, #000);
+  mask-image: linear-gradient(transparent, transparent), linear-gradient(#000, #000);
+}
+
+[data-anim="trail"] {
+  position: absolute;
+  aspect-ratio: 1;
+  width: var(--ra-trail-size, 60px);
+  border-radius: 50%;
+  /* Light mode: white was invisible against the near-white composer, so the
+     trail takes the site's own pink ramp. pink-200 (#ff9fff) is the closest
+     token to the requested #FFAAFF — there is no exact one. Dark mode keeps
+     white, which reads a shade lighter than the panel rather than sinking in. */
+  background: radial-gradient(circle, var(--ra-trail-colour, var(--_publish-primitives---colors--pink-200, #ff9fff)) 0%, transparent 70%);
+  offset-path: rect(0 auto auto 0 round var(--ra-trail-size, 60px));
+  animation: ra-trail-run var(--ra-trail-duration, 5s) linear infinite;
+}
+
+.p-theme-dark [data-anim="trail"] { --ra-trail-colour: #fff; }
+
+@keyframes ra-trail-run {
+  from { offset-distance: 0%; }
+  to   { offset-distance: 100%; }
+}
+
+/* --------------------------------------------------------------------------
+   11. Dialog (motion-primitives Dialog): opacity 0->1, scale .9->1, 200ms
+       ease-out. Purely a restyle of the open state the page already drives via
+       .is-open — the backdrop, focus trap and scroll lock stay where they are.
+       Selectors are qualified with .p-dialog so they outrank the Designer's own
+       panel rule (which travels on translateY) rather than relying on order.
+   -------------------------------------------------------------------------- */
+/* DELIBERATELY EMPTY — see the note in the report.
+   The Showcase dialog has a complete implementation of its own (open/close,
+   focus trap, scroll lock, and its own opacity/transform pair). A first attempt
+   here set opacity:0, which ties that pair on specificity and, loading later,
+   pinned the panel invisible while open. Rather than keep escalating specificity
+   against Designer-authored styles from a stylesheet that cannot be enumerated
+   cross-origin, the dialog is left exactly as the page ships it until the
+   interaction can be watched directly. The JS still stamps hooks, so wiring the
+   scale is a CSS-only change once that is settled. */
+
+/* --------------------------------------------------------------------------
+   12. Dither shader — a canvas laid over the source image, faded in on hover.
+       The image underneath is untouched, so with no WebGL nothing changes.
+   -------------------------------------------------------------------------- */
+[data-anim="dither-host"] {
+  position: relative;
+  /* Look controls, read by the shader at draw time. Override either of these
+     on any section (or on :root for all of them) to dial the effect — no code
+     change needed. Larger cell = chunkier dither; fewer levels = harsher. */
+  --ra-dither-cell: 3;     /* size of one dither cell, in CSS px */
+  --ra-dither-levels: 5;   /* tones per channel */
+}
+
+[data-anim="dither"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease-out;
+  /* No z-index here on purpose. The JS inserts the canvas immediately after the
+     image and copies the image's own z-index onto it, so it covers the image
+     and only the image — captions, handles and badges layered above the photo
+     keep their place. A fixed value here would put the shader over them. */
+}
+
+[data-anim="dither-host"]:hover [data-anim="dither"],
+[data-anim="dither-host"]:focus-within [data-anim="dither"] { opacity: 1; }
+
+/* --------------------------------------------------------------------------
+   8. Reduced motion — every effect degrades to an instant state change.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+
+  [data-anim="watermark-line"],
+  [data-anim^="btn-"],
+  [data-anim-grow],
+  [data-anim="dropdown-list"],
+  [data-anim="dropdown-list"] [data-anim="dropdown-item"],
+  [data-anim="text-effect"] .ra-char,
+  [data-anim="blur-fade"],
+  [data-anim="dither"],
+  [data-anim="hovercard"] {
+    transition: none !important;
+  }
+
+  /* A light permanently circling the composer is the most restless of these. */
+  [data-anim="trail"] { animation: none !important; opacity: 0 !important; }
+  /* The dialog is untouched here — the page carries its own reduced-motion
+     rule for the panel already. */
+
+  /* Reveals must never leave content invisible when motion is off. */
+  [data-anim="text-effect"] .ra-char { opacity: 1 !important; }
+  [data-anim="blur-fade"] { opacity: 1 !important; filter: none !important; }
+
+  /* The dots still appear on hover, they just stop travelling. */
+  a[data-anim-dotlink]:hover::after,
+  a[data-anim-dotlink]:focus-visible::after { animation: none !important; }
+
+  [data-anim^="btn-"]:hover,
+  [data-anim^="btn-"]:active,
+  [data-anim^="btn-"]:focus-visible,
+  [data-anim-grow]:hover,
+  [data-anim-grow]:active,
+  [data-anim-grow]:focus-visible { transform: none !important; }
+
+  /* The caret still blinks: that is the platform convention for a text cursor,
+     and a static bar reads as a rendering fault rather than a calmer one. */
+
+  [data-anim="hovercard"] { transform: none !important; }
+  [data-anim="hovercard"][data-state="open"] { transform: none !important; }
+}
